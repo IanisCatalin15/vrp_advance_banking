@@ -1043,67 +1043,77 @@ function Banking:__construct()
 
     self.cfg = module("vrp_banking", "cfg/cfg")
 
-    RegisterNetEvent("vrp_banking:requestOpen", function()
+    RegisterNetEvent("vrp_banking:requestOpen")
+    AddEventHandler("vrp_banking:requestOpen", function()
         local src = source
         local user = vRP.users_by_source[src]
         local success, payload, message = self:getUIContext(user)
         TriggerClientEvent("vrp_banking:openUI", src, success, payload, message)
     end)
 
-    RegisterNetEvent("vrp_banking:deposit", function(amount)
+    RegisterNetEvent("vrp_banking:deposit")
+    AddEventHandler("vrp_banking:deposit", function(amount)
         local src = source
         local success, message, payload = self:deposit(amount, src)
         TriggerClientEvent("vrp_banking:actionResult", src, "deposit", success, message, payload)
     end)
 
-    RegisterNetEvent("vrp_banking:withdraw", function(amount)
+    RegisterNetEvent("vrp_banking:withdraw")
+    AddEventHandler("vrp_banking:withdraw", function(amount)
         local src = source
         local success, message, payload = self:withdraw(amount, src)
         TriggerClientEvent("vrp_banking:actionResult", src, "withdraw", success, message, payload)
     end)
 
-    RegisterNetEvent("vrp_banking:createAccount", function(pin)
+    RegisterNetEvent("vrp_banking:createAccount")
+    AddEventHandler("vrp_banking:createAccount", function(pin)
         local src = source
         local success, message, payload = self:createAccountFromUI(pin, src)
         TriggerClientEvent("vrp_banking:actionResult", src, "createAccount", success, message, payload)
     end)
 
-    RegisterNetEvent("vrp_banking:ownerSetAccountPrice", function(bank_id, price)
+    RegisterNetEvent("vrp_banking:ownerSetAccountPrice")
+    AddEventHandler("vrp_banking:ownerSetAccountPrice", function(bank_id, price)
         local src = source
         local user = vRP.users_by_source[src]
         local success, message = self:trySetAccountPrice(user, bank_id, price)
         self:sendOwnerResult(user, bank_id, "owner:setAccountPrice", success, message)
     end)
 
-    RegisterNetEvent("vrp_banking:ownerSetTaxesIn", function(bank_id, percent)
+    RegisterNetEvent("vrp_banking:ownerSetTaxesIn")
+    AddEventHandler("vrp_banking:ownerSetTaxesIn", function(bank_id, percent)
         local src = source
         local user = vRP.users_by_source[src]
         local success, message = self:trySetTaxesIn(user, bank_id, percent)
         self:sendOwnerResult(user, bank_id, "owner:setTaxesIn", success, message)
     end)
 
-    RegisterNetEvent("vrp_banking:ownerSetTaxesOut", function(bank_id, percent)
+    RegisterNetEvent("vrp_banking:ownerSetTaxesOut")
+    AddEventHandler("vrp_banking:ownerSetTaxesOut", function(bank_id, percent)
         local src = source
         local user = vRP.users_by_source[src]
         local success, message = self:trySetTaxesOut(user, bank_id, percent)
         self:sendOwnerResult(user, bank_id, "owner:setTaxesOut", success, message)
     end)
 
-    RegisterNetEvent("vrp_banking:ownerAddStacks", function(bank_id, amount)
+    RegisterNetEvent("vrp_banking:ownerAddStacks")
+    AddEventHandler("vrp_banking:ownerAddStacks", function(bank_id, amount)
         local src = source
         local user = vRP.users_by_source[src]
         local success, message = self:tryAddStacks(user, bank_id, amount)
         self:sendOwnerResult(user, bank_id, "owner:addStacks", success, message)
     end)
 
-    RegisterNetEvent("vrp_banking:ownerWithdrawProfit", function(bank_id, amount)
+    RegisterNetEvent("vrp_banking:ownerWithdrawProfit")
+    AddEventHandler("vrp_banking:ownerWithdrawProfit", function(bank_id, amount)
         local src = source
         local user = vRP.users_by_source[src]
         local success, message = self:tryWithdrawProfit(user, bank_id, amount)
         self:sendOwnerResult(user, bank_id, "owner:withdrawProfit", success, message)
     end)
 
-    RegisterNetEvent("vrp_banking:ownerUpgradeDeposit", function(bank_id)
+    RegisterNetEvent("vrp_banking:ownerUpgradeDeposit")
+    AddEventHandler("vrp_banking:ownerUpgradeDeposit", function(bank_id)
         local src = source
         local user = vRP.users_by_source[src]
         local success, message = self:tryUpgradeDeposit(user, bank_id)
