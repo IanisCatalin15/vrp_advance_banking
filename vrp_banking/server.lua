@@ -715,6 +715,19 @@ function Banking:withdraw(amount, src)
     local user_id = user.id
     local character_id = user.cid
     local bank_id = self:getUserBank(user)
+    if not bank_id then
+        local message = "Nu ești într-o zonă de bancă."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
+    local account = self:getBankAccount(character_id, bank_id)
+    if not account then
+        local message = "Trebuie să deții un cont la această bancă."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
     local bankData = self:IDBankInfo(bank_id)
 
     if not bankData then
@@ -768,6 +781,19 @@ function Banking:deposit(amount, src)
     local user_id = user.id
     local character_id = user.cid
     local bank_id = self:getUserBank(user)
+    if not bank_id then
+        local message = "Nu ești într-o zonă de bancă."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
+    local account = self:getBankAccount(character_id, bank_id)
+    if not account then
+        local message = "Trebuie să deții un cont la această bancă."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
     local bankData = self:IDBankInfo(bank_id)
 
     if not bankData then
