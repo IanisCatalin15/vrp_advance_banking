@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advance Banking</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="hidden">
+    <div class="app" id="customerApp">
+        <header class="app__header">
+            <div>
+                <h1 id="bankName">Banca</h1>
+                <p id="playerName">Utilizator</p>
+            </div>
+            <button class="app__close" id="closeButton" aria-label="Închide">×</button>
+        </header>
+
+        <section class="status">
+            <div class="status__card">
+                <span class="status__label">Sold bancă</span>
+                <span class="status__value" id="bankBalance">$0</span>
+            </div>
+            <div class="status__card">
+                <span class="status__label">Portofel</span>
+                <span class="status__value" id="walletBalance">$0</span>
+            </div>
+            <div class="status__card">
+                <span class="status__label">Taxă depunere</span>
+                <span class="status__value" id="taxesIn">0%</span>
+            </div>
+            <div class="status__card">
+                <span class="status__label">Taxă retragere</span>
+                <span class="status__value" id="taxesOut">0%</span>
+            </div>
+        </section>
+
+        <section class="actions">
+            <div class="action-card">
+                <h2>Depunere</h2>
+                <p class="action-card__hint">Minim <span id="minDeposit">$0</span></p>
+                <div class="action-card__form">
+                    <input type="number" id="depositAmount" placeholder="Sumă" min="1" />
+                    <button id="depositButton">Depune</button>
+                </div>
+            </div>
+            <div class="action-card">
+                <h2>Retragere</h2>
+                <p class="action-card__hint">Minim <span id="minWithdraw">$0</span></p>
+                <div class="action-card__form">
+                    <input type="number" id="withdrawAmount" placeholder="Sumă" min="1" />
+                    <button id="withdrawButton">Retrage</button>
+                </div>
+            </div>
+            <div class="action-card action-card--info">
+                <h2>Statistici</h2>
+                <ul>
+                    <li>Level depozit: <span id="depositLevel">1</span></li>
+                    <li>Stive maxime: <span id="maxStacks">0</span></li>
+                    <li>Capacitate bancă: <span id="maxBankMoney">0</span></li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="transactions">
+            <div class="transactions__header">
+                <h2>Istoric tranzacții</h2>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tip</th>
+                        <th>Suma</th>
+                        <th>Data</th>
+                        <th>Ora</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionsBody">
+                    <tr>
+                        <td colspan="4" class="transactions__empty">Nu există tranzacții.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <div class="app owner is-hidden" id="ownerApp">
+        <header class="app__header owner__header">
+            <div>
+                <h1 id="ownerBankName">Banca</h1>
+                <p id="ownerName">Owner</p>
+            </div>
+            <button class="app__close" id="ownerCloseButton" aria-label="Închide">×</button>
+        </header>
+
+        <section class="owner-summary">
+            <div class="owner-summary__card">
+                <span class="owner-summary__label">Fonduri bancă</span>
+                <span class="owner-summary__value" id="ownerBankMoney">$0</span>
+            </div>
+            <div class="owner-summary__card">
+                <span class="owner-summary__label">Profit acumulat</span>
+                <span class="owner-summary__value" id="ownerProfit">$0</span>
+            </div>
+            <div class="owner-summary__card">
+                <span class="owner-summary__label">Nivel depozit</span>
+                <span class="owner-summary__value" id="ownerDepositLevel">1</span>
+            </div>
+            <div class="owner-summary__card">
+                <span class="owner-summary__label">Bani împachetați</span>
+                <span class="owner-summary__value" id="ownerPackagedMoney">$0</span>
+            </div>
+            <div class="owner-summary__card">
+                <span class="owner-summary__label">Capacitate bancă</span>
+                <span class="owner-summary__value" id="ownerMaxBankMoney">$0</span>
+            </div>
+        </section>
+
+        <section class="owner-grid">
+            <div class="owner-card">
+                <h2>Setări bancă</h2>
+                <div class="owner-form">
+                    <label for="ownerAccountPrice">Preț cont</label>
+                    <div class="owner-form__inline">
+                        <input type="number" id="ownerAccountPrice" min="0" />
+                        <button id="ownerAccountPriceButton">Salvează</button>
+                    </div>
+                    <p class="owner-form__hint">Interval: <span id="ownerAccountPriceRange">$0 - $0</span></p>
+                </div>
+                <div class="owner-form">
+                    <label for="ownerTaxesIn">Taxă depunere (%)</label>
+                    <div class="owner-form__inline">
+                        <input type="number" id="ownerTaxesIn" min="0" max="100" />
+                        <button id="ownerTaxesInButton">Salvează</button>
+                    </div>
+                    <p class="owner-form__hint">Interval: <span id="ownerTaxesInRange">0% - 0%</span></p>
+                </div>
+                <div class="owner-form">
+                    <label for="ownerTaxesOut">Taxă retragere (%)</label>
+                    <div class="owner-form__inline">
+                        <input type="number" id="ownerTaxesOut" min="0" max="100" />
+                        <button id="ownerTaxesOutButton">Salvează</button>
+                    </div>
+                    <p class="owner-form__hint">Interval: <span id="ownerTaxesOutRange">0% - 0%</span></p>
+                </div>
+            </div>
+
+            <div class="owner-card">
+                <h2>Gestionare fonduri</h2>
+                <div class="owner-form">
+                    <label for="ownerAddStacks">Adaugă stive</label>
+                    <div class="owner-form__inline">
+                        <input type="number" id="ownerAddStacks" min="0" />
+                        <button id="ownerAddStacksButton">Depune</button>
+                    </div>
+                    <p class="owner-form__hint">Minim: <span id="ownerAddStacksMin">$0</span></p>
+                    <p class="owner-form__hint">Capacitate stive: <span id="ownerStackCapacity">$0 / $0</span></p>
+                </div>
+                <div class="owner-form">
+                    <label for="ownerWithdrawProfit">Retrage profit</label>
+                    <div class="owner-form__inline">
+                        <input type="number" id="ownerWithdrawProfit" min="0" />
+                        <button id="ownerWithdrawProfitButton">Retrage</button>
+                    </div>
+                    <p class="owner-form__hint">Minim: <span id="ownerProfitMin">$0</span></p>
+                    <p class="owner-form__hint">Taxe stat: <span id="ownerStateTax">0%</span></p>
+                </div>
+            </div>
+
+            <div class="owner-card owner-card--upgrade">
+                <h2>Upgrade depozit</h2>
+                <p id="ownerUpgradeInfo">Nivel maxim atins.</p>
+                <button id="ownerUpgradeButton">Upgrade</button>
+            </div>
+        </section>
+    </div>
+
+    <div class="overlay hidden" id="accountOverlay">
+        <div class="overlay__card">
+            <h2>Creează-ți contul bancar</h2>
+            <p>Introduceți un PIN din 4 cifre pentru a crea contul la această bancă. Cost: <span id="accountPrice">$0</span></p>
+            <input type="text" maxlength="4" id="pinInput" placeholder="PIN (4 cifre)" />
+            <div class="overlay__actions">
+                <button id="createAccountButton">Creează cont</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast hidden" id="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
