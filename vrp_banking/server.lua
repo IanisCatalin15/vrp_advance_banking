@@ -358,90 +358,232 @@ end
 
 function Banking:getUserBank(user)
     local banks = Banking.cfg.banks
-    for bank_id, bankData in pairs(banks) do
-        local area_id = "vRP:vrp_banking:BankFuncitons:" .. bank_id
+    for index, bankData in pairs(banks) do
+        local area_id = "vRP:vrp_banking:BankFuncitons:" .. index
         if user:inArea(area_id) then
-            return bank_id, bankData.bank_name
+            return bankData.bank_id or index, bankData.bank_name
         end
     end
     return nil, "Unknown Bank"
 end
 
-function Banking:withdraw(amount)
-    local user = vRP.users_by_source[source]
+function Banking:buildTransactionsList(character_id, bank_id)
+    local transactions = self:GetTransactionByBank(character_id, bank_id)
+
+    local limited = {}
+    for index = 1, math.min(#transactions, 10) do
+        limited[index] = transactions[index]
+    end
+
+    return limited
+end
+
+function Banking:getUIContext(user)
+    if not user then
+        return false, nil, "Player not found."
+    end
+
+    local character_id = user.cid
+    if not character_id then
+        return false, nil, "Character data unavailable."
+    end
+
+    local bank_id, bank_name = self:getUserBank(user)
+    if not bank_id then
+        return false, nil, "Trebuie să vă aflați într-o bancă pentru a accesa contul."
+    end
+
+    local bankData = self:IDBankInfo(bank_id)
+    if not bankData then
+        return false, nil, "Informațiile băncii nu sunt disponibile."
+    end
+
+    local identity = vRP.EXT.Identity:getIdentity(character_id)
+    local account = self:getBankAccount(character_id, bank_id)
+
+    local transactions = self:buildTransactionsList(character_id, bank_id)
+    local upgrade = self.cfg.upgrades[bankData.deposit_level] or {}
+
+    local payload = {
+        playerName = identity and (identity.firstname .. " " .. identity.name) or "Necunoscut",
+        bankName = bank_name,
+        bankId = bank_id,
+        wallet = user:getWallet(),
+        balance = user:getBank(),
+        taxesIn = bankData.taxes_in,
+        taxesOut = bankData.taxes_out,
+        minDeposit = self.cfg.min_deposit,
+        minWithdraw = self.cfg.min_withdraw,
+        hasAccount = account ~= nil,
+        accountPrice = bankData.create_acc,
+        depositLevel = bankData.deposit_level,
+        maxStacks = upgrade.max_add_stacks or 0,
+        maxBankMoney = upgrade.max_money_in_bank or 0,
+        transactions = transactions
+    }
+
+    return true, payload, nil
+end
+
+function Banking:withdraw(amount, src)
+    local playerSource = src or source
+    local user = vRP.users_by_source[playerSource]
+    if not user then
+        return false, "Player not found."
+    end
+
     local user_id = user.id
     local character_id = user.cid
-    local bank_id = Banking:getUserBank(user)
-    local bankData = Banking:IDBankInfo(bank_id)
+    local bank_id = self:getUserBank(user)
+    local bankData = self:IDBankInfo(bank_id)
 
-    if bankData then
-        local taxes_out_percent = bankData.taxes_out
-        local balance = user:getBank()
-        amount = tonumber(amount)
+    if not bankData then
+        local message = "Bank information is not available."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
 
-        if amount and amount >= Banking.cfg.min_withdraw and amount <= balance then
-            local taxed_amount = math.floor(amount * (taxes_out_percent / 100))
-            local final_amount = amount + taxed_amount
+    local taxes_out_percent = bankData.taxes_out
+    local balance = user:getBank()
+    amount = tonumber(amount)
 
-            if final_amount <= tonumber(bankData.money) then
-                if user:tryWithdraw(amount) and user:tryPayment(taxed_amount) then
-                    exports.oxmysql:execute("UPDATE vrp_banks SET money = money - ? WHERE bank_id = ?", {final_amount, bank_id})
-                    Banking:AddTransaction(character_id, bankData.bank_id, bankData.bank_name, "Withdraw", amount)
-                    vRP:execute("vRP/add_taxes_profit", {character_id = character_id, taxed_amount = taxed_amount})
-                    vRP.EXT.Base.remote._notify(user_id, string.format("Withdrawn: $%s (Taxed: $%s)", formatNumber(amount), formatNumber(taxed_amount)))
-                else
-                    vRP.EXT.Base.remote._notify(user_id, "Failed to withdraw funds.")
-                end
+    if amount and amount >= Banking.cfg.min_withdraw and amount <= balance then
+        local taxed_amount = math.floor(amount * (taxes_out_percent / 100))
+        local final_amount = amount + taxed_amount
+
+        if final_amount <= tonumber(bankData.money) then
+            if user:tryWithdraw(amount) and (taxed_amount <= 0 or user:tryPayment(taxed_amount)) then
+                exports.oxmysql:execute("UPDATE vrp_banks SET money = money - ? WHERE bank_id = ?", {final_amount, bank_id})
+                Banking:AddTransaction(character_id, bankData.bank_id, bankData.bank_name, "Withdraw", amount)
+                vRP:execute("vRP/add_taxes_profit", {character_id = character_id, taxed_amount = taxed_amount})
+                local message = string.format("Ai retras: $%s (Taxă: $%s)", formatNumber(amount), formatNumber(taxed_amount))
+                vRP.EXT.Base.remote._notify(user_id, message)
+                local _, context = self:getUIContext(user)
+                return true, message, context
             else
-                vRP.EXT.Base.remote._notify(user_id, "Not enough funds in the bank.")
+                local message = "Failed to withdraw funds."
+                vRP.EXT.Base.remote._notify(user_id, message)
+                return false, message
             end
         else
-            vRP.EXT.Base.remote._notify(user_id, "Invalid withdrawal amount or insufficient balance.")
+            local message = "Not enough funds in the bank."
+            vRP.EXT.Base.remote._notify(user_id, message)
+            return false, message
         end
     else
-        vRP.EXT.Base.remote._notify(user_id, "Bank information is not available.")
+        local message = "Invalid withdrawal amount or insufficient balance."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
     end
 end
 
 
-function Banking:deposit(amount)
-    local user = vRP.users_by_source[source]
+function Banking:deposit(amount, src)
+    local playerSource = src or source
+    local user = vRP.users_by_source[playerSource]
+    if not user then
+        return false, "Player not found."
+    end
+
     local user_id = user.id
     local character_id = user.cid
-    local bank_id = Banking:getUserBank(user)
-    local bankData = Banking:IDBankInfo(bank_id)
+    local bank_id = self:getUserBank(user)
+    local bankData = self:IDBankInfo(bank_id)
 
-    if bankData then
-        local lvl_dep = bankData.deposit_level
-        local infos_upgrade = Banking.cfg.upgrades[lvl_dep]
-        local max_money = infos_upgrade.max_money_in_bank
-        local money_bank = bankData.money
-        local balance = user:getWallet()
-        amount = tonumber(amount)
+    if not bankData then
+        local message = "Bank information is not available."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
 
-        if amount and amount >= Banking.cfg.min_deposit and amount <= balance then
-            local taxes_in_percent = bankData.taxes_in
-            local taxed_amount = math.floor(amount * (taxes_in_percent / 100))
-            local final_amount = (amount == balance) and (balance - taxed_amount) or (amount - taxed_amount)
+    local lvl_dep = bankData.deposit_level
+    local infos_upgrade = Banking.cfg.upgrades[lvl_dep]
+    local max_money = infos_upgrade.max_money_in_bank
+    local money_bank = bankData.money
+    local balance = user:getWallet()
+    amount = tonumber(amount)
 
-            if final_amount >= 0 and money_bank + final_amount <= max_money then
-                if user:tryDeposit(final_amount) and user:tryPayment(taxed_amount) then
-                    exports.oxmysql:execute("UPDATE vrp_banks SET money = money + ? WHERE bank_id = ?", {final_amount, bankData.bank_id})
-                    Banking:AddTransaction(character_id, bankData.bank_id, bankData.bank_name, "Deposit", final_amount)
-                    vRP:execute("vRP/add_taxes_profit", {character_id = character_id, taxed_amount = taxed_amount})
-                    vRP.EXT.Base.remote._notify(user_id, string.format("Deposited: $%s (Taxed: $%s)", formatNumber(final_amount), formatNumber(taxed_amount)))
-                else
-                    vRP.EXT.Base.remote._notify(user_id, "Failed to deposit funds.")
-                end
+    if amount and amount >= Banking.cfg.min_deposit and amount <= balance then
+        local taxes_in_percent = bankData.taxes_in
+        local taxed_amount = math.floor(amount * (taxes_in_percent / 100))
+        local final_amount = (amount == balance) and (balance - taxed_amount) or (amount - taxed_amount)
+
+        if final_amount >= 0 and money_bank + final_amount <= max_money then
+            if user:tryDeposit(final_amount) and (taxed_amount <= 0 or user:tryPayment(taxed_amount)) then
+                exports.oxmysql:execute("UPDATE vrp_banks SET money = money + ? WHERE bank_id = ?", {final_amount, bankData.bank_id})
+                Banking:AddTransaction(character_id, bankData.bank_id, bankData.bank_name, "Deposit", final_amount)
+                vRP:execute("vRP/add_taxes_profit", {character_id = character_id, taxed_amount = taxed_amount})
+                local message = string.format("Ai depus: $%s (Taxă: $%s)", formatNumber(final_amount), formatNumber(taxed_amount))
+                vRP.EXT.Base.remote._notify(user_id, message)
+                local _, context = self:getUIContext(user)
+                return true, message, context
             else
-                vRP.EXT.Base.remote._notify(user_id, "Bank is full or deposit amount after taxes is too low.")
+                local message = "Failed to deposit funds."
+                vRP.EXT.Base.remote._notify(user_id, message)
+                return false, message
             end
         else
-            vRP.EXT.Base.remote._notify(user_id, "Invalid deposit amount or insufficient balance.")
+            local message = "Bank is full or deposit amount after taxes is too low."
+            vRP.EXT.Base.remote._notify(user_id, message)
+            return false, message
         end
     else
-        vRP.EXT.Base.remote._notify(user_id, "Bank information is not available.")
+        local message = "Invalid deposit amount or insufficient balance."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
     end
+end
+
+function Banking:createAccountFromUI(pin, src)
+    local playerSource = src or source
+    local user = vRP.users_by_source[playerSource]
+
+    if not user then
+        return false, "Player not found."
+    end
+
+    local user_id = user.id
+    local character_id = user.cid
+    local bank_id, bank_name = self:getUserBank(user)
+
+    if not bank_id then
+        local message = "Trebuie să vă aflați într-o bancă pentru a crea un cont."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
+    local bankData = self:IDBankInfo(bank_id)
+    if not bankData then
+        local message = "Informațiile băncii nu sunt disponibile."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
+    if self:getBankAccount(character_id, bank_id) then
+        local message = "Aveți deja un cont deschis la această bancă."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
+    if not pin or string.len(pin) ~= 4 or not tonumber(pin) then
+        local message = "PIN invalid. Introduceți un cod din 4 cifre."
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
+    local acc_price = bankData.create_acc or 0
+
+    if acc_price > 0 and not user:tryPayment(acc_price) then
+        local message = string.format("Nu aveți suficienți bani. Costul deschiderii contului este $%s.", formatNumber(acc_price))
+        vRP.EXT.Base.remote._notify(user_id, message)
+        return false, message
+    end
+
+    self:createBankAccount(character_id, bank_id, bank_name, pin)
+    local message = string.format("Contul la banca %s a fost creat. Cost: $%s.", bank_name, formatNumber(acc_price))
+    vRP.EXT.Base.remote._notify(user_id, message)
+    local _, context = self:getUIContext(user)
+    return true, message, context
 end
 
 local function BankFunctions(self)
@@ -521,7 +663,7 @@ local function Bank_useg(self)
                 end
                 menu:addOption("Deposit Money", function()
                     local deposit_amount = user:prompt("Enter the amount to deposit:", "")
-                    Banking:deposit(deposit_amount)
+                    Banking:deposit(deposit_amount, menu.user.source)
                     user:actualizeMenu(menu)
                 end, deposit_message)
 
@@ -531,7 +673,7 @@ local function Bank_useg(self)
                 end
                 menu:addOption("Withdraw Funds", function()
                     local withdraw_amount = user:prompt("Enter the amount to withdraw:", "")
-                    Banking:withdraw(withdraw_amount)
+                    Banking:withdraw(withdraw_amount, menu.user.source)
                     user:actualizeMenu(menu)
                 end, withdraw_message)
             end
@@ -618,8 +760,33 @@ local function m_cards(menu)
 
 function Banking:__construct()
     vRP.Extension.__construct(self)
-    
+
     self.cfg = module("vrp_banking", "cfg/cfg")
+
+    RegisterNetEvent("vrp_banking:requestOpen", function()
+        local src = source
+        local user = vRP.users_by_source[src]
+        local success, payload, message = self:getUIContext(user)
+        TriggerClientEvent("vrp_banking:openUI", src, success, payload, message)
+    end)
+
+    RegisterNetEvent("vrp_banking:deposit", function(amount)
+        local src = source
+        local success, message, payload = self:deposit(amount, src)
+        TriggerClientEvent("vrp_banking:actionResult", src, "deposit", success, message, payload)
+    end)
+
+    RegisterNetEvent("vrp_banking:withdraw", function(amount)
+        local src = source
+        local success, message, payload = self:withdraw(amount, src)
+        TriggerClientEvent("vrp_banking:actionResult", src, "withdraw", success, message, payload)
+    end)
+
+    RegisterNetEvent("vrp_banking:createAccount", function(pin)
+        local src = source
+        local success, message, payload = self:createAccountFromUI(pin, src)
+        TriggerClientEvent("vrp_banking:actionResult", src, "createAccount", success, message, payload)
+    end)
 
     -- load async
     async(function()
@@ -741,7 +908,7 @@ end
 
 function Banking:GetUserTransactions(character_id)
     local transactions = {} 
-    local rows = exports.oxmysql:executeSync("SELECT transaction_type, amount, DATE_FORMAT(transaction_date, '%d-%m-%Y') AS formatted_date, DATE_FORMAT(transaction_date, '%H:%i:%s') AS formatted_hours FROM vrp_banks_transactions WHERE character_id = ?", {character_id})
+    local rows = exports.oxmysql:executeSync("SELECT transaction_type, amount, DATE_FORMAT(transaction_date, '%d-%m-%Y') AS formatted_date, DATE_FORMAT(transaction_date, '%H:%i:%s') AS formatted_hours FROM vrp_banks_transactions WHERE character_id = ? ORDER BY transaction_date DESC LIMIT 20", {character_id})
     if rows then
         for _, row in ipairs(rows) do
             local transaction = {
@@ -759,7 +926,7 @@ end
 
 function Banking:GetTransactionByBank(character_id, bank_id)
     local transactions = {}
-    local rows = exports.oxmysql:executeSync("SELECT transaction_type, amount, DATE_FORMAT(transaction_date, '%d-%m-%Y') AS formatted_date, DATE_FORMAT(transaction_date, '%H:%i:%s') AS formatted_hours FROM vrp_banks_transactions WHERE character_id = ? AND bank_id = ?", {character_id, bank_id})
+    local rows = exports.oxmysql:executeSync("SELECT transaction_type, amount, DATE_FORMAT(transaction_date, '%d-%m-%Y') AS formatted_date, DATE_FORMAT(transaction_date, '%H:%i:%s') AS formatted_hours FROM vrp_banks_transactions WHERE character_id = ? AND bank_id = ? ORDER BY transaction_date DESC LIMIT 20", {character_id, bank_id})
     if rows then
         for _, row in ipairs(rows) do
             local transaction = {
@@ -886,11 +1053,11 @@ function Banking.event:playerSpawn(user, first_spawn)
             local Bankx, Banky, Bankz = bank_locations.x, bank_locations.y, bank_locations.z -- ENTER BANKS FUCNTIONALITY DEPOSIT / WITHDRAWS
 
             local function BankFuncitons(user)
-                user:openMenu("Bank Functions")
+                TriggerClientEvent("vrp_banking:setInBank", user.source, true, { bank_id = bank_id, bank_name = bank_name })
             end
-    
+
             local function BankFuncitonsLeave(user)
-                user:closeMenu("Bank Functions")
+                TriggerClientEvent("vrp_banking:setInBank", user.source, false)
             end
 
             local bank_info = {"PoI", {blip_id = 108, blip_color = 69, marker_id = 1}}
